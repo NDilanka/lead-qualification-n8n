@@ -1,0 +1,13 @@
+# n8n local instance data (created by `npx n8n start` / import in ~/.n8n by default)
+.n8n/
+*.sqlite
+*.sqlite-journal
+
+# environment / secrets
+.env
+.env.*
+
+# node / editor cruft
+node_modules/
+.DS_Store
+Thumbs.db

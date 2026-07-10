@@ -1,0 +1,325 @@
+{
+  "id": "TesseraLeadQual1",
+  "name": "Tessera — AI Lead Qualification Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Tessera — AI Lead Qualification Pipeline\n\nInbound B2B lead form → website enrichment → AI qualification (score + tier + reasoning) → log every lead to the CRM and ping sales on the hot ones.\n\n**Flow:** `Webhook → HTTP Request → OpenAI → Code (normalize) → { Google Sheets, IF → Slack }`\n\nCredentials (OpenAI, Google Sheets, Slack) are placeholders — connect your own in each node.\n\nBuilt with Claude Code.",
+        "height": 260,
+        "width": 520,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-320, 60],
+      "id": "5fa3b52d-c964-4894-bdb4-5480320b722d",
+      "name": "Overview"
+    },
+    {
+      "parameters": {
+        "content": "### 1. Lead capture (Webhook)\n\nYour lead form POSTs JSON here:\n`{ name, email, company, website, message }`\n\nThe URL is unguessable but **unauthenticated** — fine for a demo. In production add a shared-secret header check (see DECISIONS.md).\n\nResponds immediately (`onReceived`) so the form isn't blocked while qualification runs.",
+        "height": 300,
+        "width": 300,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-320, 360],
+      "id": "397b6b4c-c9b7-4f66-830e-61fcaa1bb1ef",
+      "name": "Note Webhook"
+    },
+    {
+      "parameters": {
+        "content": "### 2. Website enrichment (HTTP Request)\n\nFetches the lead's homepage HTML so the model has context beyond the form.\n\n**Honest scope:** this is a single GET of one public page — not anti-bot scraping. `neverError` + `continueRegularOutput` mean a slow/blocked/missing site never kills qualification; the model just gets an empty page.",
+        "height": 300,
+        "width": 300,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 360],
+      "id": "46532ead-b291-4c13-b242-7829c56df7bc",
+      "name": "Note Enrichment"
+    },
+    {
+      "parameters": {
+        "content": "### 3. AI qualification (OpenAI · gpt-5-nano)\n\nSystem prompt carries the scoring rubric; user message carries the lead + homepage (capped at 3k chars).\n\n`Output Content as JSON` is on, so the model returns strict JSON:\n`{ score: 1-10, tier: hot|warm|cold, reasoning: ≤2 sentences }`\n\ngpt-5-nano = cheapest tier (matches the sibling tessera-ops-agent).",
+        "height": 300,
+        "width": 300,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [320, 360],
+      "id": "968b1167-9956-45fc-aa0f-19014a147aab",
+      "name": "Note Qualify"
+    },
+    {
+      "parameters": {
+        "content": "### 4. Normalize + route\n\nThe Code node flattens the LLM output and re-attaches the original lead into one clean item: `{ name, email, company, website, message, score, tier, reasoning, qualified_at }`. It parses defensively (object *or* string) so a malformed response degrades to `score: 0` instead of throwing.\n\n**Two branches:**\n- **Google Sheets** logs *every* lead to the CRM.\n- **IF** gates the Slack alert to hot leads only (`score ≥ 8`).",
+        "height": 320,
+        "width": 340,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [640, 360],
+      "id": "2819caa4-1107-4880-8cbf-02299345bc30",
+      "name": "Note Route"
+    },
+    {
+      "parameters": {
+        "content": "### 5. CRM log (Google Sheets)\n\nAppends one row per lead to the **CRM** sheet — hot, warm, or cold. Columns auto-map to headers matching the field names above.",
+        "height": 220,
+        "width": 300,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1020, 40],
+      "id": "64b48fff-c394-47ee-afac-99f0b7fd0aac",
+      "name": "Note CRM"
+    },
+    {
+      "parameters": {
+        "content": "### 6. Hot-lead alert (Slack)\n\nOnly fires when the IF passes (`score ≥ 8`). Posts the score, tier, company, and the model's reasoning to your sales channel. Swap for the Gmail node if you'd rather email.",
+        "height": 240,
+        "width": 300,
+        "color": 1
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1360, 440],
+      "id": "469e1ae9-f91b-4788-a800-8c2e8f4ad6c1",
+      "name": "Note Alert"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tessera-lead-qualify",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-260, 480],
+      "id": "49219bec-a6a7-4323-b1dd-921c94ee10e9",
+      "name": "Lead Webhook",
+      "webhookId": "51471fa3-c933-4025-9b66-d04805478c56"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Lead Webhook').item.json.body.website }}",
+        "options": {
+          "timeout": 15000,
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [60, 480],
+      "id": "da836e50-70e7-4934-ac9f-86a50062f0c7",
+      "name": "Fetch website homepage",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-nano",
+          "mode": "list",
+          "cachedResultName": "gpt-5-nano"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a B2B sales qualification analyst for Tessera, a B2B SaaS workspace platform sold to companies. Given a lead's form submission and their website homepage, judge how strong a fit and buying signal they are.\n\nReturn ONLY a JSON object with exactly these keys:\n{\n  \"score\": <integer 1-10>,\n  \"tier\": \"hot\" | \"warm\" | \"cold\",\n  \"reasoning\": \"<at most two sentences>\"\n}\n\nScoring rubric:\n- 8-10 = hot: strong ICP fit (a real company / team), clear intent in their message, credible website.\n- 5-7 = warm: partial fit or ambiguous intent — worth nurturing.\n- 1-4 = cold: poor fit, free/personal email with no company, vague, spammy, or off-topic.\n\nThe tier MUST agree with the score: hot if score >= 8, warm if 5-7, cold if <= 4. Keep reasoning to two sentences maximum.",
+              "role": "system"
+            },
+            {
+              "content": "=Lead form submission:\nName: {{ $('Lead Webhook').item.json.body.name }}\nEmail: {{ $('Lead Webhook').item.json.body.email }}\nCompany: {{ $('Lead Webhook').item.json.body.company }}\nWebsite: {{ $('Lead Webhook').item.json.body.website }}\nMessage: {{ $('Lead Webhook').item.json.body.message }}\n\nWebsite homepage (first 3000 chars — may be empty if the fetch failed):\n{{ ($('Fetch website homepage').item.json.data || '').toString().slice(0, 3000) }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [380, 480],
+      "id": "ea1c0604-5068-4e7a-a50c-b77dfea406c8",
+      "name": "Qualify lead (gpt-5-nano)"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Flatten the LLM qualification and re-attach the original lead into one clean item.\n// Parse defensively so a malformed response degrades gracefully instead of throwing.\nconst lead = $('Lead Webhook').item.json.body ?? {};\n\nlet q = $json.message?.content\n  ?? $json.choices?.[0]?.message?.content\n  ?? $json;\nif (typeof q === 'string') {\n  try { q = JSON.parse(q); } catch (e) { q = {}; }\n}\n\nconst score = Number(q.score);\nconst validScore = Number.isFinite(score) ? Math.max(1, Math.min(10, Math.round(score))) : 0;\nlet tier = String(q.tier ?? '').toLowerCase();\nif (!['hot', 'warm', 'cold'].includes(tier)) {\n  tier = validScore >= 8 ? 'hot' : validScore >= 5 ? 'warm' : 'cold';\n}\n\nreturn {\n  json: {\n    name: lead.name ?? '',\n    email: lead.email ?? '',\n    company: lead.company ?? '',\n    website: lead.website ?? '',\n    message: lead.message ?? '',\n    score: validScore,\n    tier,\n    reasoning: q.reasoning ?? '',\n    qualified_at: new Date().toISOString(),\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 480],
+      "id": "70a89c91-bda2-4b51-8f22-115ea539bebe",
+      "name": "Normalize qualification"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id",
+          "cachedResultName": "Tessera CRM"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "CRM",
+          "mode": "name",
+          "cachedResultName": "CRM"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [1080, 300],
+      "id": "f640ad65-8fa8-42f0-b4d1-44aff6d1a933",
+      "name": "Log to CRM (all leads)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8bcd1496-97ed-490d-82ff-feba9386f19c",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": 8,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1080, 560],
+      "id": "7cc0b177-aaba-4ff8-b0cd-669a7caaceea",
+      "name": "IF hot lead (score ≥ 8)"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id",
+          "cachedResultName": "#leads-hot"
+        },
+        "text": "=🔥 *Hot lead — score {{ $json.score }}/10 ({{ $json.tier }})*\n*{{ $json.name }}* at *{{ $json.company }}*  ·  {{ $json.email }}\nWebsite: {{ $json.website }}\n\n_Why:_ {{ $json.reasoning }}\n\n> {{ $json.message }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1420, 560],
+      "id": "5fa3b52d-0000-4894-bdb4-548032000001",
+      "name": "Notify sales (hot only)",
+      "webhookId": "397b6b4c-0000-4f66-830e-61fcaa000002"
+    }
+  ],
+  "connections": {
+    "Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch website homepage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch website homepage": {
+      "main": [
+        [
+          {
+            "node": "Qualify lead (gpt-5-nano)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualify lead (gpt-5-nano)": {
+      "main": [
+        [
+          {
+            "node": "Normalize qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize qualification": {
+      "main": [
+        [
+          {
+            "node": "Log to CRM (all leads)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF hot lead (score ≥ 8)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF hot lead (score ≥ 8)": {
+      "main": [
+        [
+          {
+            "node": "Notify sales (hot only)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {},
+  "tags": []
+}
