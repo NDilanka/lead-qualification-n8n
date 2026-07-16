@@ -92,6 +92,42 @@ The workflow imports with no secrets. Open each node and attach a credential:
 - **Slack** (`Notify sales` node) — create a *Slack API* credential (bot token) and pick
   your channel in **Channel**. The `channelId` is a placeholder (`#leads-hot`).
 
+## Run it for $0 (Gemini free tier)
+
+You can run the whole pipeline without an OpenAI bill by pointing the `Qualify lead`
+node at Google Gemini's OpenAI-compatible endpoint instead. n8n's *OpenAI* credential
+has a **Base URL** field for exactly this — any OpenAI-compatible API works, no
+separate node or credential type needed.
+
+1. **Get a free key.** <https://aistudio.google.com/apikey> — no card required.
+2. **Create the credential.** In n8n, add a new *OpenAI* credential (don't reuse the
+   paid one):
+   - **Name:** `Gemini (free tier)`
+   - **API Key:** your AI Studio key
+   - **Base URL:** `https://generativelanguage.googleapis.com/v1beta/openai/`
+3. **Point the node at a Gemini model.** Open `Qualify lead`, swap the credential to
+   the one above, and set **Model** to `gemini-2.5-flash-lite`. The model dropdown
+   populates from the endpoint's `/models` list and may not surface Gemini IDs
+   cleanly (or at all) — if it doesn't appear, switch the Model field to **Expression**
+   and enter `gemini-2.5-flash-lite` directly as a string.
+4. **Mind the rate limit.** The free tier is roughly **15 requests/min and 1,000
+   requests/day** — fine for manual testing and the five sample payloads, not for a
+   live demo hammered with traffic. Space out test POSTs accordingly.
+5. **Re-check JSON output.** `Output Content as JSON` is an OpenAI-node setting, not
+   a guarantee every compatible backend honors identically — run all five files in
+   `sample-payloads/` and confirm `$json.message.content` still parses as clean JSON
+   with `score`/`tier`/`reasoning`. The `Normalize qualification` Code node already
+   parses defensively (object or string, clamped score), so a rough edge here degrades
+   gracefully rather than throwing — but sanity-check it once before trusting the run.
+6. **Fallback: Groq.** If Gemini's output shape or rate limit doesn't cooperate, the
+   same trick works with Groq's free tier via the same credential mechanism: **Base
+   URL** `https://api.groq.com/openai/v1`, **Model** `llama-3.3-70b-versatile`, key
+   from <https://console.groq.com/keys>.
+7. **Label your metrics.** If you publish throughput/cost/latency numbers from a run
+   on Gemini or Groq, label them with the serving model (e.g. "measured on
+   `gemini-2.5-flash-lite`, not `gpt-5-nano`") — the numbers in
+   [Measured metrics](#measured-metrics) below are not interchangeable across models.
+
 ## Test it
 
 Start the workflow (Execute or Activate), then POST a sample lead:
