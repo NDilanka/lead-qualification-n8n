@@ -128,6 +128,21 @@ separate node or credential type needed.
    `gemini-2.5-flash-lite`, not `gpt-5-nano`") — the numbers in
    [Measured metrics](#measured-metrics) below are not interchangeable across models.
 
+### Option: OpenRouter credential (one balance, real `gpt-5-nano`)
+
+If you hold OpenRouter credits, the same Base-URL trick runs the workflow on the
+*original* model without a separate OpenAI account:
+
+- **Create the credential.** New *OpenAI* credential — **API Key:** your OpenRouter
+  key (`sk-or-...`), **Base URL:** `https://openrouter.ai/api/v1`.
+- **Model:** `openai/gpt-5-nano` (OpenRouter namespaces model IDs by provider; enter
+  it as a string if the dropdown doesn't surface it).
+- **Rehearse free, record paid.** For dry runs, point the same credential at any
+  `:free`-suffixed model from <https://openrouter.ai/models> (accounts that have
+  topped up ≥$10 once get ~1,000 free-model requests/day), then switch to
+  `openai/gpt-5-nano` for the recorded run so the published metrics match the
+  README's model claims.
+
 ## Test it
 
 Start the workflow (Execute or Activate), then POST a sample lead:
